@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,11 +6,22 @@ import {
   Alert,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
-import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
+// Removed static import from 'react-native-maps' to prevent web build error
 import AuthService from '../services/AuthService';
 import { LocationService } from '../services/LocationService';
+import FoodSurplusService from '../services/FoodSurplusService';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+
+// Local Region type to avoid importing from react-native-maps on web
+type Region = {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+};
 
 type UserType = 'canteen' | 'ngo' | 'driver';
 
@@ -26,28 +37,85 @@ interface UserLocation {
 const CHENNAI_REGION: Region = {
   latitude: 13.0827,
   longitude: 80.2707,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
+  latitudeDelta: 0.25,
+  longitudeDelta: 0.25,
 };
+
+const NEARBY_RADIUS_KM = 10; // filter radius for "nearby"
+
+interface RouteEndpoints {
+  start: { latitude: number; longitude: number }; // canteen
+  end: { latitude: number; longitude: number };   // NGO
+}
+
+// Display modes to toggle between allowed categories
+// For NGO: all | canteen | driver
+// For Driver: all | canteen | ngo
+type DisplayMode = 'all' | 'canteen' | 'ngo' | 'driver';
 
 export default function MapScreen() {
   const [userLocations, setUserLocations] = useState<UserLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserType, setCurrentUserType] = useState<UserType>('ngo');
+  const [myLocation, setMyLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [assignedOnlyMode, setAssignedOnlyMode] = useState(false);
+  const [route, setRoute] = useState<RouteEndpoints | null>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('all');
+
+  // Dynamically require react-native-maps only on native platforms
+  const isWeb = Platform.OS === 'web';
+  const RNMaps = !isWeb ? require('react-native-maps') : null;
+  const MapViewComp = RNMaps ? RNMaps.default : null;
+  const MarkerComp = RNMaps ? RNMaps.Marker : null;
+  const PolylineComp = RNMaps ? RNMaps.Polyline : null;
+  const PROVIDER_GOOGLE = RNMaps ? RNMaps.PROVIDER_GOOGLE : null;
+
+  // Helpers to map display mode -> includeTypes for current role
+  const getAllowedTypes = (type: UserType): Array<'canteen' | 'ngo' | 'driver'> => {
+    if (type === 'ngo') return ['canteen', 'driver'];
+    if (type === 'driver') return ['canteen', 'ngo'];
+    return [];
+  };
+
+  const getIncludeTypes = (type: UserType, mode: DisplayMode): Array<'canteen' | 'ngo' | 'driver'> | undefined => {
+    const allowed = getAllowedTypes(type);
+    if (mode === 'all') return allowed;
+    if (allowed.includes(mode as any)) return [mode as any];
+    return allowed; // fallback safety
+  };
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         const user = await AuthService.getCurrentUser();
-        const type: UserType =
-          user && (user.userType === 'canteen' || user.userType === 'ngo' || user.userType === 'driver')
-            ? (user.userType as UserType)
+        // Normalize volunteer to driver for role-based map behavior
+        const rawType = user?.userType;
+        const type: UserType = rawType === 'volunteer'
+          ? 'driver'
+          : (rawType === 'canteen' || rawType === 'ngo' || rawType === 'driver')
+            ? (rawType as UserType)
             : 'ngo';
         setCurrentUserType(type);
-        const locations = await LocationService.getUserLocations(type);
-        setUserLocations(locations);
+
+        // Set sensible default display mode per role
+        if (type === 'driver') {
+          setDisplayMode('canteen');
+        } else if (type === 'ngo') {
+          setDisplayMode('all');
+        }
+
+        if (type === 'canteen') {
+          // Map not available for canteens per requirements
+          setUserLocations([]);
+          setAssignedOnlyMode(false);
+          setRoute(null);
+          setLoading(false);
+          return;
+        }
+
+        await loadDataForType(type, user?.id || null);
       } catch (error) {
         console.error('Error initializing map data:', error);
         Alert.alert('Error', 'Failed to load locations. Please try again.');
@@ -57,11 +125,89 @@ export default function MapScreen() {
     })();
   }, []);
 
+  const loadDataForType = async (type: UserType, userId: string | null) => {
+    try {
+      setAssignedOnlyMode(false);
+      setRoute(null);
+
+      // Determine my coordinates for proximity filtering
+      let myCoords: { latitude: number; longitude: number } | null = null;
+      if (userId) {
+        const mine = await LocationService.getUserLocationById(userId);
+        if (mine) {
+          myCoords = { latitude: mine.latitude, longitude: mine.longitude };
+          setMyLocation(myCoords);
+        }
+      }
+
+      // Fallback for drivers: use device GPS when stored coords are unavailable
+      if (!myCoords && type === 'driver') {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            myCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            setMyLocation(myCoords);
+          }
+        } catch (e) {
+          console.warn('Could not get device location:', e);
+        }
+      }
+
+      const include = getIncludeTypes(type, displayMode);
+
+      if (type === 'ngo') {
+        // NGOs: show ALL drivers and/or canteens based on filter (no proximity restriction)
+        const allForNGO = await LocationService.getUserLocations('ngo', userId || undefined, include);
+        setUserLocations(allForNGO);
+      } else if (type === 'driver') {
+        // Drivers: first check if this driver has an assignment; if so, show only route to that NGO
+        let assigned = await FoodSurplusService.getDriverAssignedSurplus(userId || '');
+        assigned = assigned.filter(s => s.status === 'claimed');
+        if (assigned.length > 0) {
+          const first = assigned[0];
+          const canteenLoc = await LocationService.getUserLocationById(first.canteenId);
+          const ngoLoc = first.claimedBy ? await LocationService.getUserLocationById(first.claimedBy) : null;
+          if (canteenLoc && ngoLoc) {
+            setAssignedOnlyMode(true);
+            setUserLocations([canteenLoc, ngoLoc]);
+            setRoute({
+              start: { latitude: canteenLoc.latitude, longitude: canteenLoc.longitude },
+              end: { latitude: ngoLoc.latitude, longitude: ngoLoc.longitude },
+            });
+            return; // do not show other markers
+          }
+        }
+
+        // Otherwise: show NGOs and/or Canteens (exclude self), only if we have myCoords
+        const allForDriver = await LocationService.getUserLocations('driver', userId || undefined, include);
+        if (myCoords) {
+          const filtered = filterNearby(allForDriver, myCoords);
+          setUserLocations(filtered);
+        } else {
+          // Without location, don't show all markers to keep the view focused
+          setUserLocations([]);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading map data for type:', err);
+      throw err;
+    }
+  };
+
+  const filterNearby = (locations: UserLocation[], myCoords: { latitude: number; longitude: number } | null) => {
+    if (!myCoords) return locations; // if we don't know my location, skip filtering
+    return locations.filter(loc => {
+      const d = LocationService.calculateDistance(myCoords.latitude, myCoords.longitude, loc.latitude, loc.longitude);
+      return d <= NEARBY_RADIUS_KM;
+    });
+  };
+
   const loadUserLocations = async (type: UserType) => {
     try {
       setLoading(true);
-      const locations = await LocationService.getUserLocations(type);
-      setUserLocations(locations);
+      const user = await AuthService.getCurrentUser();
+      await loadDataForType(type, user?.id || null);
     } catch (error) {
       console.error('Error loading user locations:', error);
       Alert.alert('Error', 'Failed to load locations. Please try again.');
@@ -74,6 +220,29 @@ export default function MapScreen() {
     setRefreshing(true);
     await loadUserLocations(currentUserType);
     setRefreshing(false);
+  };
+
+  const cycleDisplayMode = async () => {
+    // Cycle through: all -> first allowed -> second allowed -> all
+    const allowed = getAllowedTypes(currentUserType);
+    const first = allowed[0];
+    const second = allowed[1];
+
+    let next: DisplayMode = 'all';
+    if (displayMode === 'all') next = first as DisplayMode;
+    else if (displayMode === (first as DisplayMode)) next = second as DisplayMode;
+    else next = 'all';
+
+    setDisplayMode(next);
+    await loadUserLocations(currentUserType);
+  };
+
+  const currentModeLabel = () => {
+    if (displayMode === 'all') return 'All';
+    if (displayMode === 'canteen') return 'Canteens';
+    if (displayMode === 'ngo') return 'NGOs';
+    if (displayMode === 'driver') return 'Drivers';
+    return 'All';
   };
 
   const getMarkerColor = (userType: string) => {
@@ -90,16 +259,18 @@ export default function MapScreen() {
   };
 
   const renderMarker = (location: UserLocation) => (
-    <Marker
-      key={location.id}
-      coordinate={{
-        latitude: location.latitude,
-        longitude: location.longitude,
-      }}
-      title={location.name}
-      description={`${location.userType.toUpperCase()} - ${location.address}`}
-      pinColor={getMarkerColor(location.userType)}
-    />
+    MarkerComp ? (
+      <MarkerComp
+        key={location.id}
+        coordinate={{
+          latitude: location.latitude,
+          longitude: location.longitude,
+        }}
+        title={location.name}
+        description={`${location.userType.toUpperCase()} - ${location.address}`}
+        pinColor={getMarkerColor(location.userType)}
+      />
+    ) : null
   );
 
   if (loading) {
@@ -111,50 +282,60 @@ export default function MapScreen() {
     );
   }
 
+  if (currentUserType === 'canteen') {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Map is available only for NGO and Driver accounts.</Text>
+      </View>
+    );
+  }
+
+  if (isWeb) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Map is not available on web preview. Please use the Expo Go app on a device to view the map.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={CHENNAI_REGION}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
-        showsCompass={true}
-        showsScale={true}
-      >
-        {userLocations.map(renderMarker)}
-      </MapView>
+      {MapViewComp && (
+        <MapViewComp
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          initialRegion={CHENNAI_REGION}
+          showsUserLocation={currentUserType !== 'driver'}
+          showsMyLocationButton={true}
+          showsCompass={true}
+          showsScale={true}
+        >
+          {userLocations.map(renderMarker)}
+          {assignedOnlyMode && route && PolylineComp && (
+            <PolylineComp
+              coordinates={[route.start, route.end]}
+              strokeColor="#2c3e50"
+              strokeWidth={4}
+            />
+          )}
+        </MapViewComp>
+      )}
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>PlateLink Map</Text>
-        <Text style={styles.headerSubtitle}>Chennai, India</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.refreshButton}
-        onPress={handleRefresh}
-        disabled={refreshing}
-      >
-        <Ionicons
-          name="refresh"
-          size={24}
-          color="white"
-          style={refreshing ? { opacity: 0.5 } : {}}
-        />
-      </TouchableOpacity>
-
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#FF6B6B' }]} />
-          <Text style={styles.legendText}>Canteens</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#4ECDC4' }]} />
-          <Text style={styles.legendText}>NGOs</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#45B7D1' }]} />
-          <Text style={styles.legendText}>Drivers</Text>
+      <View style={styles.footer}>
+        {/* Role-specific filter swap and refresh */}
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={styles.swapButton} onPress={cycleDisplayMode}>
+            <Ionicons name="swap-horizontal" size={18} color="#2c3e50" />
+            <Text style={styles.swapText}>Showing: {currentModeLabel()}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+            <Ionicons name="refresh" size={18} color="#fff" />
+            <Text style={styles.refreshText}>{refreshing ? 'Refreshing...' : 'Refresh'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -162,94 +343,71 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
+  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  map: { flex: 1 },
   header: {
     position: 'absolute',
     top: 50,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    padding: 12,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  refreshButton: {
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#2c3e50' },
+  footer: {
     position: 'absolute',
-    top: 140,
-    right: 20,
-    backgroundColor: '#4ECDC4',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  legend: {
-    position: 'absolute',
-    bottom: 30,
+    bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    padding: 12,
     borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
   },
-  legendItem: {
+  footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  roleTabs: { flexDirection: 'row', marginBottom: 10 },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#ecf0f1',
+    marginRight: 10,
+  },
+  activeTab: { backgroundColor: '#4ECDC4' },
+  tabText: { marginLeft: 6, color: '#2c3e50', fontWeight: '600' },
+  activeTabText: { color: '#fff' },
+  swapButton: {
+    backgroundColor: '#ecf0f1',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+  swapText: { marginLeft: 6, color: '#2c3e50', fontWeight: '700' },
+  refreshButton: {
+    backgroundColor: '#2c3e50',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    marginLeft: 10,
   },
-  legendText: {
-    fontSize: 12,
-    color: '#2c3e50',
-    fontWeight: '500',
-  },
+  refreshText: { color: '#fff', marginLeft: 6, fontWeight: '700' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  loadingText: { marginTop: 8, color: '#2c3e50' },
 });

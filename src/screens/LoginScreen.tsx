@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,10 @@ import { useNavigation } from '@react-navigation/native';
 import AuthService from '../services/AuthService';
 import { wp, hp, rf, rs } from '../utils/responsive';
 
-const LoginScreen: React.FC = () => {
+const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userType, setUserType] = useState<'canteen' | 'ngo' | 'volunteer'>('canteen');
+  const [userType, setUserType] = useState<'canteen' | 'ngo' | 'volunteer' | 'driver'>('canteen');
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
 
@@ -34,6 +34,8 @@ const LoginScreen: React.FC = () => {
       // Navigate based on user type
       if (user.userType === 'canteen') {
         navigation.navigate('CanteenTabs' as never);
+      } else if (user.userType === 'driver') {
+        navigation.navigate('DriverTabs' as never);
       } else {
         navigation.navigate('NGOTabs' as never);
       }
@@ -112,6 +114,20 @@ const LoginScreen: React.FC = () => {
                   userType === 'volunteer' && styles.userTypeButtonTextActive
                 ]}>
                   Volunteer
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.userTypeButton,
+                  userType === 'driver' && styles.userTypeButtonActive
+                ]}
+                onPress={() => setUserType('driver')}
+              >
+                <Text style={[
+                  styles.userTypeButtonText,
+                  userType === 'driver' && styles.userTypeButtonTextActive
+                ]}>
+                  Driver
                 </Text>
               </TouchableOpacity>
             </View>

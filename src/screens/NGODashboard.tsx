@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { User } from '../models/User';
 import FoodSurplusService from '../services/FoodSurplusService';
 import { FoodSurplus } from '../models/FoodSurplus';
 
-const NGODashboard: React.FC = () => {
+const NGODashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [todayStats, setTodayStats] = useState({
@@ -113,7 +113,7 @@ const NGODashboard: React.FC = () => {
   };
 
   const navigateToMessages = () => {
-    navigation.navigate('ChatListScreen' as never);
+    navigation.navigate('Messages' as never);
   };
 
   return (

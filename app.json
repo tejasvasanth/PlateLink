@@ -43,7 +43,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "This app uses location to show nearby food sources and delivery options."
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }

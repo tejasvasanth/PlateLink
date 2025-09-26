@@ -38,19 +38,22 @@ const sanitizeFirestoreData = (value: any): any => {
 export interface LoginCredentials {
   email: string;
   password: string;
-  userType: 'canteen' | 'ngo' | 'volunteer';
+  userType: 'canteen' | 'ngo' | 'volunteer' | 'driver';
 }
 
 export interface RegisterData {
   email: string;
   password: string;
   name: string;
-  userType: 'canteen' | 'ngo' | 'volunteer';
+  userType: 'canteen' | 'ngo' | 'volunteer' | 'driver';
   canteenName?: string;
   organizationName?: string;
   organizationType?: 'ngo' | 'volunteer' | 'community_group';
   address?: string;
   contactNumber?: string;
+  // Driver-specific fields
+  vehicleType?: string;
+  licenseNumber?: string;
 }
 
 class AuthService {
@@ -164,15 +167,28 @@ class AuthService {
 
       if (rest.userType === 'canteen') {
         if (rest.canteenName) profile.canteenName = rest.canteenName;
-        // Ensure organization fields are not present for canteen users
+        // Ensure organization and driver fields are not present for canteen users
         delete profile.organizationName;
         delete profile.organizationType;
+        delete profile.vehicleType;
+        delete profile.licenseNumber;
         profile.greenScore = 0;
+      } else if (rest.userType === 'driver') {
+        // Driver-specific inclusion
+        if (rest.vehicleType) profile.vehicleType = rest.vehicleType;
+        if (rest.licenseNumber) profile.licenseNumber = rest.licenseNumber;
+        // Ensure canteen and organization fields are not present for drivers
+        delete profile.canteenName;
+        delete profile.organizationName;
+        delete profile.organizationType;
       } else {
+        // NGO / Volunteer users
         if (rest.organizationName) profile.organizationName = rest.organizationName;
         if (rest.organizationType) profile.organizationType = rest.organizationType;
-        // Ensure canteen fields are not present for NGO/Volunteer users
+        // Ensure canteen and driver fields are not present for NGO/Volunteer users
         delete profile.canteenName;
+        delete profile.vehicleType;
+        delete profile.licenseNumber;
         profile.impactScore = 0;
       }
 

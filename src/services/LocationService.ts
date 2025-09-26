@@ -1,6 +1,7 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import * as Location from 'expo-location';
+import { Platform } from 'react-native';
 
 // Geocoding service using Expo Location
 
@@ -19,6 +20,11 @@ interface FirestoreUser {
   userType: 'canteen' | 'ngo' | 'driver';
   address?: string;
   organizationName?: string;
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+  };
 }
 
 // Chennai bounds for filtering locations
@@ -43,13 +49,39 @@ export class LocationService {
   }
 
   /**
+   * Prefer stored coordinates on the user document if available and valid
+   */
+  private static getCoordsFromUser(userData: FirestoreUser): { latitude: number; longitude: number; address: string } | null {
+    const lat = userData.location?.latitude;
+    const lon = userData.location?.longitude;
+    const addr = userData.location?.address || userData.address || '';
+    if (typeof lat === 'number' && typeof lon === 'number' && this.isWithinChennai(lat, lon)) {
+      return { latitude: lat, longitude: lon, address: addr };
+    }
+    return null;
+  }
+
+  /**
    * Geocode an address to get latitude and longitude using Expo Location
    */
   static async geocodeAddress(address: string): Promise<{ latitude: number; longitude: number } | null> {
     try {
+      // On web, skip geocoding to avoid browser/environment limitations
+      if (Platform.OS === 'web') {
+        console.warn('Geocoding skipped on web environment');
+        return null;
+      }
+
       // Add Chennai, India to the address for better accuracy
-      const fullAddress = address.includes('Chennai') ? address : `${address}, Chennai, India`;
-      
+      const fullAddress = address?.includes('Chennai') ? address : `${address}, Chennai, India`;
+
+      // Some platforms may require foreground permissions for location services used by geocoder
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('Location permission not granted; skipping geocoding');
+        return null;
+      }
+
       const geocodedLocation = await Location.geocodeAsync(fullAddress);
       
       if (geocodedLocation && geocodedLocation.length > 0) {
@@ -72,38 +104,69 @@ export class LocationService {
   }
 
   /**
-   * Get all user locations based on the current user's type
-   * NGOs and Drivers can see canteens and each other
+   * Get user locations visible to the current user, with optional type filters
+   * - NGOs can see: canteens, drivers
+   * - Drivers can see: canteens, NGOs
+   * includeTypes: further narrows down which of the visible categories to include
    */
-  static async getUserLocations(currentUserType: string): Promise<UserLocation[]> {
+  static async getUserLocations(
+    currentUserType: string,
+    excludeUserId?: string,
+    includeTypes?: Array<'canteen' | 'ngo' | 'driver'>
+  ): Promise<UserLocation[]> {
     try {
       const usersRef = collection(db, 'users');
-      let userQuery;
 
       // Define what user types the current user can see
+      let allowed: Array<'canteen' | 'ngo' | 'driver'> = [];
       if (currentUserType === 'ngo') {
-        // NGOs can see canteens and drivers
-        userQuery = query(usersRef, where('userType', 'in', ['canteen', 'driver']));
-      } else if (currentUserType === 'driver') {
-        // Drivers can see canteens and NGOs
-        userQuery = query(usersRef, where('userType', 'in', ['canteen', 'ngo']));
+        allowed = ['canteen', 'driver'];
+      } else if (currentUserType === 'driver' || currentUserType === 'volunteer') {
+        // normalize volunteer to driver visibility
+        allowed = ['canteen', 'ngo'];
       } else {
         // Canteens shouldn't access this (but if they do, show nothing)
         return [];
       }
 
+      const finalTypes = includeTypes && includeTypes.length > 0
+        ? allowed.filter((t) => includeTypes.includes(t))
+        : allowed;
+
+      if (finalTypes.length === 0) return [];
+
+      const userQuery = query(usersRef, where('userType', 'in', finalTypes));
       const querySnapshot = await getDocs(userQuery);
       const locations: UserLocation[] = [];
 
       for (const doc of querySnapshot.docs) {
         const userData = doc.data() as FirestoreUser;
+
+        // Do not include the current user in the results
+        if (excludeUserId && doc.id === excludeUserId) {
+          continue;
+        }
         
+        // Prefer stored coordinates if available
+        const stored = this.getCoordsFromUser(userData);
+        if (stored) {
+          locations.push({
+            id: doc.id,
+            name: userData.organizationName || userData.name,
+            userType: userData.userType,
+            latitude: stored.latitude,
+            longitude: stored.longitude,
+            address: stored.address || userData.address || '',
+          });
+          continue;
+        }
+
         if (!userData.address) {
           console.warn(`User ${userData.name} has no address`);
           continue;
         }
 
-        // Geocode the address
+        // Geocode the address as a fallback (may be skipped on web)
         const coordinates = await this.geocodeAddress(userData.address);
         
         if (coordinates) {
@@ -138,8 +201,21 @@ export class LocationService {
         return null;
       }
 
-      const doc = querySnapshot.docs[0];
-      const userData = doc.data() as FirestoreUser;
+      const docSnap = querySnapshot.docs[0];
+      const userData = docSnap.data() as FirestoreUser;
+
+      // Prefer stored coordinates if available
+      const stored = this.getCoordsFromUser(userData);
+      if (stored) {
+        return {
+          id: docSnap.id,
+          name: userData.organizationName || userData.name,
+          userType: userData.userType,
+          latitude: stored.latitude,
+          longitude: stored.longitude,
+          address: stored.address || userData.address || '',
+        };
+      }
 
       if (!userData.address) {
         return null;
@@ -149,7 +225,7 @@ export class LocationService {
       
       if (coordinates) {
         return {
-          id: doc.id,
+          id: docSnap.id,
           name: userData.organizationName || userData.name,
           userType: userData.userType,
           latitude: coordinates.latitude,

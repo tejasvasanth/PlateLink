@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import AuthService from '../services/AuthService';
 import { wp, hp, rf, rs } from '../utils/responsive';
 
-const RegisterScreen: React.FC = () => {
+const RegisterScreen = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -57,9 +57,22 @@ const RegisterScreen: React.FC = () => {
       return false;
     }
 
-    if (formData.userType !== 'canteen' && !formData.organizationName) {
+    // Require organization name ONLY for NGO and Volunteer
+    if ((formData.userType === 'ngo' || formData.userType === 'volunteer') && !formData.organizationName) {
       Alert.alert('Error', 'Please enter organization name');
       return false;
+    }
+
+    // Require driver-specific fields for Driver
+    if (formData.userType === 'driver') {
+      if (!formData.vehicleType) {
+        Alert.alert('Error', 'Please enter vehicle type');
+        return false;
+      }
+      if (!formData.licenseNumber) {
+        Alert.alert('Error', 'Please enter license number');
+        return false;
+      }
     }
 
     return true;
@@ -79,9 +92,14 @@ const RegisterScreen: React.FC = () => {
         contactNumber: formData.contactNumber,
       };
 
-      if (formData.userType === 'canteen' && formData.canteenName) {
-        payload.canteenName = formData.canteenName;
+      if (formData.userType === 'canteen') {
+        if (formData.canteenName) payload.canteenName = formData.canteenName;
+      } else if (formData.userType === 'driver') {
+        // Driver fields
+        payload.vehicleType = formData.vehicleType;
+        payload.licenseNumber = formData.licenseNumber;
       } else {
+        // NGO / Volunteer fields
         if (formData.organizationName) payload.organizationName = formData.organizationName;
         if (formData.organizationType) payload.organizationType = formData.organizationType;
       }
@@ -95,9 +113,11 @@ const RegisterScreen: React.FC = () => {
             text: 'OK',
             onPress: () => {
               if (user.userType === 'canteen') {
-                navigation.navigate('CanteenDashboard' as never);
+                navigation.navigate('CanteenTabs' as never);
+              } else if (user.userType === 'driver') {
+                navigation.navigate('DriverTabs' as never);
               } else {
-                navigation.navigate('NGODashboard' as never);
+                navigation.navigate('NGOTabs' as never);
               }
             },
           },

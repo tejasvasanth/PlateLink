@@ -1,11 +1,10 @@
-import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 
 // Import screens
 import NGODashboard from '../screens/NGODashboard';
 import SurplusScreen from '../screens/SurplusScreen';
-import MessagesScreen from '../screens/MessagesScreen';
+import ChatListScreen from '../screens/ChatListScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import MapScreen from '../screens/MapScreen';
 
@@ -30,7 +29,7 @@ const DriverTabNavigator = () => {
       />
       <Tab.Screen 
         name="Deliveries" 
-        component={SurplusScreen}
+        component={require('../screens/DriverDeliveriesScreen').default}
         options={{
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🚚</Text>,
         }}
@@ -44,7 +43,7 @@ const DriverTabNavigator = () => {
       />
       <Tab.Screen 
         name="Messages" 
-        component={MessagesScreen}
+        component={ChatListScreen}
         options={{
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💬</Text>,
         }}

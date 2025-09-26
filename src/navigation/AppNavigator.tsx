@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View } from 'react-native';
+import { Text, View, ActivityIndicator } from 'react-native';
 import AuthService from '../services/AuthService';
 import { User } from '../models/User';
 
@@ -15,12 +15,31 @@ import SurplusScreen from '../screens/SurplusScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import MapScreen from '../screens/MapScreen';
+import ChatScreen from '../screens/ChatScreen';
+import ChatListScreen from '../screens/ChatListScreen';
+// --- NEW IMPORT ---
+import MenuPlannerScreen from '../screens/MenuPlannerScreen'; 
 
 // Import navigators
 import DriverTabNavigator from './DriverTabNavigator';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Placeholder component for screens not yet implemented
+const PlaceholderScreen = ({ route }: any) => {
+    return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <Text style={{ fontSize: 18, textAlign: 'center' }}>
+                {route.name} Screen
+            </Text>
+            <Text style={{ fontSize: 14, color: '#666', marginTop: 10, textAlign: 'center' }}>
+                This screen will be implemented soon
+            </Text>
+        </View>
+    );
+};
+
 
 // Canteen Tab Navigator
 const CanteenTabNavigator = () => {
@@ -43,12 +62,13 @@ const CanteenTabNavigator = () => {
         name="Surplus" 
         component={SurplusScreen}
         options={{
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📱</Text>,
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📦</Text>,
         }}
       />
+      {/* Retaining the original tab structure per user request */}
       <Tab.Screen 
         name="Messages" 
-        component={MessagesScreen}
+        component={ChatListScreen}
         options={{
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💬</Text>,
         }}
@@ -64,7 +84,7 @@ const CanteenTabNavigator = () => {
   );
 };
 
-// NGO Tab Navigator
+// NGO Tab Navigator (Kept as Placeholder in the file)
 const NGOTabNavigator = () => {
   return (
     <Tab.Navigator
@@ -97,7 +117,7 @@ const NGOTabNavigator = () => {
       />
       <Tab.Screen 
         name="Messages" 
-        component={MessagesScreen}
+        component={ChatListScreen}
         options={{
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💬</Text>,
         }}
@@ -113,51 +133,19 @@ const NGOTabNavigator = () => {
   );
 };
 
-// Placeholder component for screens not yet implemented
-const PlaceholderScreen = ({ route }: any) => {
-  return (
-    <View style={{ 
-      flex: 1, 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      padding: 20 
-    }}>
-      <Text style={{ fontSize: 18, textAlign: 'center' }}>
-        {route.name} Screen
-      </Text>
-      <Text style={{ fontSize: 14, color: '#666', marginTop: 10, textAlign: 'center' }}>
-        This screen will be implemented soon
-      </Text>
-    </View>
-  );
-};
-
+// Main App Navigator
 const AppNavigator: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  // Subscribe to auth state updates so navigation tree updates after login/logout
-  useEffect(() => {
+    // Subscribe to auth state updates so navigation tree updates after login/logout
     const unsubscribe = AuthService.onAuthStateChanged((authUser) => {
       setUser(authUser);
+      setIsLoading(false);
     });
     return unsubscribe;
   }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const currentUser = await AuthService.getCurrentUser();
-      setUser(currentUser);
-    } catch (error) {
-      console.log('No authenticated user');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -166,7 +154,8 @@ const AppNavigator: React.FC = () => {
         justifyContent: 'center', 
         alignItems: 'center' 
       }}>
-        <Text>Loading...</Text>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={{ marginTop: 10 }}>Loading...</Text>
       </View>
     );
   }
@@ -191,7 +180,7 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen name="NGOTabs" component={NGOTabNavigator} />
             )}
             
-            {/* Modal screens that can be accessed from any tab */}
+            {/* Global Stack Screens that can be pushed onto the stack */}
             <Stack.Screen 
               name="ProfileScreen" 
               component={PlaceholderScreen}
@@ -199,32 +188,30 @@ const AppNavigator: React.FC = () => {
             />
             <Stack.Screen 
               name="AddSurplusScreen" 
-              component={PlaceholderScreen}
+              component={SurplusScreen} 
               options={{ presentation: 'modal' }}
             />
             <Stack.Screen 
               name="SurplusListScreen" 
               component={PlaceholderScreen}
             />
+            {/* --- CRITICAL: Register the MenuPlannerScreen in the Stack --- */}
             <Stack.Screen 
-              name="NearbyFoodScreen" 
-              component={PlaceholderScreen}
+              name="MenuPlannerScreen" 
+              component={MenuPlannerScreen}
             />
-            <Stack.Screen 
-              name="ClaimedFoodScreen" 
-              component={PlaceholderScreen}
-            />
+            {/* ----------------------------------------------------------- */}
             <Stack.Screen 
               name="AnalyticsScreen" 
               component={PlaceholderScreen}
             />
             <Stack.Screen 
               name="ChatListScreen" 
-              component={PlaceholderScreen}
+              component={ChatListScreen}
             />
             <Stack.Screen 
               name="ChatScreen" 
-              component={PlaceholderScreen}
+              component={ChatScreen}
             />
           </>
         )}

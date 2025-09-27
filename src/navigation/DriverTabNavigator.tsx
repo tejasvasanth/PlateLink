@@ -2,15 +2,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 
 // Import screens
-import NGODashboard from '../screens/NGODashboard';
-import SurplusScreen from '../screens/SurplusScreen';
+import DriverDashboard from '../screens/DriverDashboard';
 import ChatListScreen from '../screens/ChatListScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
 import MapScreen from '../screens/MapScreen';
 
 const Tab = createBottomTabNavigator();
 
-// Driver Tab Navigator (similar to NGO but with driver-specific context)
 const DriverTabNavigator = () => {
   return (
     <Tab.Navigator
@@ -22,7 +19,7 @@ const DriverTabNavigator = () => {
     >
       <Tab.Screen 
         name="Dashboard" 
-        component={NGODashboard}
+        component={DriverDashboard}
         options={{
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text>,
         }}
@@ -46,13 +43,6 @@ const DriverTabNavigator = () => {
         component={ChatListScreen}
         options={{
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💬</Text>,
-        }}
-      />
-      <Tab.Screen 
-        name="Analytics" 
-        component={AnalyticsScreen}
-        options={{
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📊</Text>,
         }}
       />
     </Tab.Navigator>

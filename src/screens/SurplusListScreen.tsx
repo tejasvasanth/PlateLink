@@ -5,6 +5,7 @@ import FoodSurplusService from '../services/FoodSurplusService';
 import { FoodSurplus } from '../models/FoodSurplus';
 import { collection, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import theme from '../config/theme';
 
 export default function SurplusListScreen() {
   const [loading, setLoading] = useState(true);
@@ -159,8 +160,8 @@ export default function SurplusListScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={{ marginTop: 8, color: '#666' }}>Loading your surplus…</Text>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={{ marginTop: 8, color: theme.colors.textSecondary }}>Loading your surplus…</Text>
       </View>
     );
   }
@@ -181,7 +182,7 @@ export default function SurplusListScreen() {
         ListHeaderComponent={<Text style={styles.sectionTitle}>Active</Text>}
         ListEmptyComponent={
           <View style={styles.centered}>
-            <Text style={{ color: '#666' }}>No active items.</Text>
+            <Text style={{ color: theme.colors.textSecondary }}>No active items.</Text>
           </View>
         }
       />
@@ -203,7 +204,7 @@ export default function SurplusListScreen() {
         ListHeaderComponent={<Text style={styles.sectionTitle}>Past</Text>}
         ListEmptyComponent={
           <View style={styles.centered}>
-            <Text style={{ color: '#666' }}>No past items.</Text>
+            <Text style={{ color: theme.colors.textSecondary }}>No past items.</Text>
           </View>
         }
       />
@@ -212,20 +213,20 @@ export default function SurplusListScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  title: { fontSize: 20, fontWeight: '700', color: '#333' },
-  subtitle: { fontSize: 12, color: '#666', marginTop: 4 },
+  header: { padding: 16, backgroundColor: theme.colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight },
+  title: { fontSize: 20, fontWeight: '700', color: theme.colors.text },
+  subtitle: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 4 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#333', marginHorizontal: 16, marginTop: 16 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  foodName: { fontSize: 16, fontWeight: '700', color: '#2196F3' },
-  meta: { fontSize: 12, color: '#666', marginTop: 4 },
-  location: { fontSize: 12, color: '#444', marginTop: 4 },
-  status: { fontSize: 12, color: '#333', marginTop: 4 },
-  hint: { fontSize: 12, color: '#666' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#fafafa' },
-  primaryBtn: { backgroundColor: '#4CAF50', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
-  primaryBtnText: { color: '#fff', fontWeight: '700' },
-  secondaryBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#4CAF50', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
-  secondaryBtnText: { color: '#4CAF50', fontWeight: '700' },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text, marginHorizontal: 16, marginTop: 16 },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.backgroundCard, borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: theme.colors.shadow, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  foodName: { fontSize: 16, fontWeight: '700', color: theme.colors.primary },
+  meta: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 4 },
+  location: { fontSize: 12, color: theme.colors.text, marginTop: 4 },
+  status: { fontSize: 12, color: theme.colors.text, marginTop: 4 },
+  hint: { fontSize: 12, color: theme.colors.textSecondary },
+  input: { borderWidth: 1, borderColor: theme.colors.borderLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: theme.colors.backgroundSecondary },
+  primaryBtn: { backgroundColor: theme.colors.primary, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
+  primaryBtnText: { color: theme.colors.textLight, fontWeight: '700' },
+  secondaryBtn: { backgroundColor: theme.colors.backgroundCard, borderWidth: 1, borderColor: theme.colors.primary, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
+  secondaryBtnText: { color: theme.colors.primary, fontWeight: '700' },
 });

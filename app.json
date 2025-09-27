@@ -17,6 +17,11 @@
       "bundleIdentifier": "com.platelink.app",
       "config": {
         "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "PlateLink needs access to location to show nearby food sources and delivery options.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "PlateLink needs access to location to show nearby food sources and delivery options.",
+        "UIBackgroundModes": ["location"]
       }
     },
     "android": {
@@ -32,16 +37,25 @@
         "googleMaps": {
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
         }
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "bundler": "metro"
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "This app uses location to show nearby food sources and delivery options."
+          "locationAlwaysAndWhenInUsePermission": "PlateLink needs access to location to show nearby food sources and delivery options.",
+          "locationAlwaysPermission": "PlateLink needs access to location to show nearby food sources and delivery options.",
+          "locationWhenInUsePermission": "PlateLink needs access to location to show nearby food sources and delivery options.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       "expo-asset"

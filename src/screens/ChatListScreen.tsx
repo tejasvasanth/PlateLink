@@ -6,6 +6,7 @@ import { collection, getDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import FoodSurplusService from '../services/FoodSurplusService';
 import { Ionicons } from '@expo/vector-icons';
+import theme from '../config/theme';
 
 interface SectionItem {
   chat: Chat;
@@ -164,8 +165,8 @@ export default function ChatListScreen({ navigation }: any) {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={{ marginTop: 8, color: '#666' }}>Loading chats...</Text>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={{ marginTop: 8, color: theme.colors.textSecondary }}>Loading chats...</Text>
       </View>
     );
   }
@@ -207,13 +208,13 @@ export default function ChatListScreen({ navigation }: any) {
         )}
         ListEmptyComponent={
           <View style={styles.centered}>
-            <Text style={{ color: '#666' }}>No chats yet. Start one below.</Text>
+            <Text style={{ color: theme.colors.textSecondary }}>No chats yet. Start one below.</Text>
           </View>
         }
       />
 
       <TouchableOpacity style={styles.newChatButton} onPress={openDirectory}>
-        <Ionicons name="chatbubbles" size={22} color="#fff" />
+        <Ionicons name="chatbubbles" size={22} color={theme.colors.textLight} />
         <Text style={styles.newChatText}>Start new chat</Text>
       </TouchableOpacity>
 
@@ -222,7 +223,7 @@ export default function ChatListScreen({ navigation }: any) {
           <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}> 
             <Text style={styles.title}>Start a new chat</Text>
             <TouchableOpacity onPress={() => setShowDirectory(false)}>
-              <Text style={{ color: '#4CAF50', fontWeight: '700' }}>Close</Text>
+              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Close</Text>
             </TouchableOpacity>
           </View>
           <SectionList
@@ -255,7 +256,7 @@ export default function ChatListScreen({ navigation }: any) {
             )}
             ListEmptyComponent={
               <View style={styles.centered}>
-                <Text style={{ color: '#666' }}>No users found.</Text>
+                <Text style={{ color: theme.colors.textSecondary }}>No users found.</Text>
               </View>
             }
           />
@@ -266,21 +267,21 @@ export default function ChatListScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8f9fa' },
-  header: { padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  title: { fontSize: 20, fontWeight: '700', color: '#333' },
-  subtitle: { fontSize: 12, color: '#666', marginTop: 4 },
-  sectionHeader: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#f5f5f5' },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#555' },
-  chatItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', backgroundColor: '#fff' },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  avatarText: { fontSize: 16, fontWeight: '700', color: '#555' },
-  chatName: { fontSize: 14, fontWeight: '600', color: '#333' },
-  chatMeta: { fontSize: 12, color: '#666', marginTop: 2 },
-  badgeDriver: { backgroundColor: '#45B7D1', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
-  badgeNGO: { backgroundColor: '#4ECDC4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
-  badgeCanteen: { backgroundColor: '#FF6B6B', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  newChatButton: { position: 'absolute', bottom: 20, right: 20, backgroundColor: '#4CAF50', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 8, elevation: 3 },
-  newChatText: { color: '#fff', fontWeight: '700', marginLeft: 8 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
+  header: { padding: 16, backgroundColor: theme.colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight },
+  title: { fontSize: 20, fontWeight: '700', color: theme.colors.text },
+  subtitle: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 4 },
+  sectionHeader: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.backgroundSecondary },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: theme.colors.text },
+  chatItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight, backgroundColor: theme.colors.backgroundCard },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.accentLight, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  avatarText: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
+  chatName: { fontSize: 14, fontWeight: '600', color: theme.colors.text },
+  chatMeta: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 },
+  badgeDriver: { backgroundColor: theme.colors.driver, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
+  badgeNGO: { backgroundColor: theme.colors.ngo, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
+  badgeCanteen: { backgroundColor: theme.colors.canteen, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
+  badgeText: { color: theme.colors.textLight, fontSize: 10, fontWeight: '700' },
+  newChatButton: { position: 'absolute', bottom: 20, right: 20, backgroundColor: theme.colors.primary, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 8, elevation: 3 },
+  newChatText: { color: theme.colors.textLight, fontWeight: '700', marginLeft: 8 },
 });

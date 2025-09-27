@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import AuthService from '../services/AuthService';
 import { wp, hp, rf, rs } from '../utils/responsive';
+import theme from '../config/theme';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const RegisterScreen = () => {
   const [formData, setFormData] = useState({
@@ -20,17 +27,62 @@ const RegisterScreen = () => {
     password: '',
     confirmPassword: '',
     name: '',
-    userType: 'canteen' as 'canteen' | 'ngo' | 'volunteer' | 'driver',
+    userType: 'canteen' as 'canteen' | 'ngo' | 'driver',
     canteenName: '',
     organizationName: '',
-    organizationType: 'ngo' as 'ngo' | 'volunteer' | 'community_group',
+    organizationType: 'ngo' as 'ngo' | 'community_group',
     address: '',
     contactNumber: '',
     vehicleType: '',
     licenseNumber: '',
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigation = useNavigation();
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const animateButton = () => {
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   const updateFormData = (key: string, value: string) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -57,13 +109,11 @@ const RegisterScreen = () => {
       return false;
     }
 
-    // Require organization name ONLY for NGO and Volunteer
-    if ((formData.userType === 'ngo' || formData.userType === 'volunteer') && !formData.organizationName) {
+    if ((formData.userType === 'ngo') && !formData.organizationName) {
       Alert.alert('Error', 'Please enter organization name');
       return false;
     }
 
-    // Require driver-specific fields for Driver
     if (formData.userType === 'driver') {
       if (!formData.vehicleType) {
         Alert.alert('Error', 'Please enter vehicle type');
@@ -81,6 +131,7 @@ const RegisterScreen = () => {
   const handleRegister = async () => {
     if (!validateForm()) return;
 
+    animateButton();
     setLoading(true);
     try {
       const payload: any = {
@@ -95,11 +146,9 @@ const RegisterScreen = () => {
       if (formData.userType === 'canteen') {
         if (formData.canteenName) payload.canteenName = formData.canteenName;
       } else if (formData.userType === 'driver') {
-        // Driver fields
         payload.vehicleType = formData.vehicleType;
         payload.licenseNumber = formData.licenseNumber;
       } else {
-        // NGO / Volunteer fields
         if (formData.organizationName) payload.organizationName = formData.organizationName;
         if (formData.organizationType) payload.organizationType = formData.organizationType;
       }
@@ -134,410 +183,568 @@ const RegisterScreen = () => {
     navigation.navigate('LoginScreen' as never);
   };
 
+  const getUserTypeDisplayIcon = (type: string) => {
+    switch (type) {
+      case 'canteen': return '🍽️';
+      case 'ngo': return '🤝';
+      case 'driver': return '🚚';
+      default: return '👤';
+    }
+  };
+
+  const getUserTypeColor = (type: string) => {
+    switch (type) {
+      case 'canteen': return theme.colors.gradients.primary;
+      case 'ngo': return theme.colors.gradients.primary;
+      case 'driver': return theme.colors.gradients.accent;
+      default: return theme.colors.gradients.secondary;
+    }
+  };
+
+  const getOrgTypeIcon = (type: string) => {
+    switch (type) {
+      case 'ngo': return '🏛️';
+      case 'volunteer': return '👤';
+      case 'community_group': return '👥';
+      default: return '🏛️';
+    }
+  };
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <LinearGradient
+      colors={theme?.colors?.gradients?.background || ['#F0F8FF', '#E0F6FF']}
+      style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Join PlateLink</Text>
-          <Text style={styles.subtitle}>Create your account to start making a difference</Text>
-        </View>
-
-        <View style={styles.form}>
-          {/* User Type Selection */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>I am a:</Text>
-            <View style={styles.userTypeButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  formData.userType === 'canteen' && styles.userTypeButtonActive
-                ]}
-                onPress={() => updateFormData('userType', 'canteen')}
+      <KeyboardAvoidingView 
+        style={styles.keyboardContainer} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View 
+            style={[
+              styles.header,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={['#ffffff', '#f8f9fa']}
+                style={styles.logoCircle}
               >
-                <Text style={[
-                  styles.userTypeButtonText,
-                  formData.userType === 'canteen' && styles.userTypeButtonTextActive
-                ]}>
-                  Canteen
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  formData.userType === 'ngo' && styles.userTypeButtonActive
-                ]}
-                onPress={() => updateFormData('userType', 'ngo')}
-              >
-                <Text style={[
-                  styles.userTypeButtonText,
-                  formData.userType === 'ngo' && styles.userTypeButtonTextActive
-                ]}>
-                  NGO
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  formData.userType === 'volunteer' && styles.userTypeButtonActive
-                ]}
-                onPress={() => updateFormData('userType', 'volunteer')}
-              >
-                <Text style={[
-                  styles.userTypeButtonText,
-                  formData.userType === 'volunteer' && styles.userTypeButtonTextActive
-                ]}>
-                  Volunteer
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  formData.userType === 'driver' && styles.userTypeButtonActive
-                ]}
-                onPress={() => updateFormData('userType', 'driver')}
-              >
-                <Text style={[
-                  styles.userTypeButtonText,
-                  formData.userType === 'driver' && styles.userTypeButtonTextActive
-                ]}>
-                  Driver
-                </Text>
-              </TouchableOpacity>
+                <Text style={styles.logoEmoji}>🍽️</Text>
+              </LinearGradient>
             </View>
-          </View>
+            <Text style={styles.title}>Join PlateLink</Text>
+            <Text style={styles.subtitle}>Create your account to start making a difference</Text>
+          </Animated.View>
 
-          {/* Email */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.email}
-              onChangeText={(value) => updateFormData('email', value)}
-              placeholder="Enter your email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          {/* Name */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Full Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.name}
-              onChangeText={(value) => updateFormData('name', value)}
-              placeholder="Enter your full name"
-              autoCapitalize="words"
-            />
-          </View>
-
-          {/* Canteen Name (if canteen) */}
-          {formData.userType === 'canteen' && (
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Canteen Name *</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.canteenName}
-                onChangeText={(value) => updateFormData('canteenName', value)}
-                placeholder="Enter canteen name"
-                autoCapitalize="words"
-              />
-            </View>
-          )}
-
-          {/* Organization Name (if NGO/Volunteer) */}
-          {(formData.userType === 'ngo' || formData.userType === 'volunteer') && (
-            <>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Organization Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.organizationName}
-                  onChangeText={(value) => updateFormData('organizationName', value)}
-                  placeholder="Enter organization name"
-                  autoCapitalize="words"
-                />
+          <Animated.View 
+            style={[
+              styles.formContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }]
+              }
+            ]}
+          >
+            <LinearGradient
+              colors={theme?.colors?.gradients?.card || ['#FFFFFF', '#F8F9FA']}
+              style={styles.form}
+            >
+              <Text style={styles.sectionTitle}>Create Account</Text>
+              
+              {/* User Type Selection */}
+              <View style={styles.userTypeContainer}>
+                <Text style={styles.label}>I am a:</Text>
+                <View style={styles.userTypeButtons}>
+                  {(['canteen', 'ngo', 'driver'] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.userTypeButton,
+                        formData.userType === type && styles.userTypeButtonActive
+                      ]}
+                      onPress={() => updateFormData('userType', type)}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={formData.userType === type ? getUserTypeColor(type) : ['transparent', 'transparent']}
+                        style={styles.userTypeButtonGradient}
+                      >
+                        <Text style={styles.userTypeIcon}>{getUserTypeIcon(type)}</Text>
+                        <Text style={[
+                          styles.userTypeButtonText,
+                          formData.userType === type && styles.userTypeButtonTextActive
+                        ]}>
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
+              {/* Email Input */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Organization Type</Text>
-                <View style={styles.organizationTypeButtons}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={formData.email}
+                    onChangeText={(value) => updateFormData('email', value)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              </View>
+
+              {/* Name Input */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your full name"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={formData.name}
+                    onChangeText={(value) => updateFormData('name', value)}
+                    autoCapitalize="words"
+                  />
+                </View>
+              </View>
+
+              {/* Canteen Name (if canteen) */}
+              {formData.userType === 'canteen' && (
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Canteen Name</Text>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="business-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter canteen name"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      value={formData.canteenName}
+                      onChangeText={(value) => updateFormData('canteenName', value)}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Organization Name (if NGO) */}
+        {(formData.userType === 'ngo') && (
+                <>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Organization Name</Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="business-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter organization name"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        value={formData.organizationName}
+                        onChangeText={(value) => updateFormData('organizationName', value)}
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Organization Type</Text>
+                    <View style={styles.organizationTypeButtons}>
+                      {(['ngo', 'community_group'] as const).map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          style={[
+                            styles.orgTypeButton,
+                            formData.organizationType === type && styles.orgTypeButtonActive
+                          ]}
+                          onPress={() => updateFormData('organizationType', type)}
+                          activeOpacity={0.8}
+                        >
+                          <LinearGradient
+                            colors={formData.organizationType === type ? ['#2196F3', '#1976D2'] : ['transparent', 'transparent']}
+                            style={styles.orgTypeButtonGradient}
+                          >
+                            <Text style={styles.orgTypeIcon}>{getOrgTypeIcon(type)}</Text>
+                            <Text style={[
+                              styles.orgTypeButtonText,
+                              formData.organizationType === type && styles.orgTypeButtonTextActive
+                            ]}>
+                              {type === 'community_group' ? 'Community' : 'NGO'}
+                            </Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {/* Driver specific fields */}
+              {formData.userType === 'driver' && (
+                <>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Vehicle Type</Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="car-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g., Car, Bike, Van"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        value={formData.vehicleType}
+                        onChangeText={(value) => updateFormData('vehicleType', value)}
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>License Number</Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="card-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter your driving license number"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        value={formData.licenseNumber}
+                        onChangeText={(value) => updateFormData('licenseNumber', value)}
+                        autoCapitalize="characters"
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {/* Address */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Address</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="location-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Enter your address"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={formData.address}
+                    onChangeText={(value) => updateFormData('address', value)}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+              </View>
+
+              {/* Contact Number */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Contact Number</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="call-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your contact number"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={formData.contactNumber}
+                    onChangeText={(value) => updateFormData('contactNumber', value)}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </View>
+
+              {/* Password */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={formData.password}
+                    onChangeText={(value) => updateFormData('password', value)}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
                   <TouchableOpacity
-                    style={[
-                      styles.orgTypeButton,
-                      formData.organizationType === 'ngo' && styles.orgTypeButtonActive
-                    ]}
-                    onPress={() => updateFormData('organizationType', 'ngo')}
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
                   >
-                    <Text style={[
-                      styles.orgTypeButtonText,
-                      formData.organizationType === 'ngo' && styles.orgTypeButtonTextActive
-                    ]}>
-                      NGO
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.orgTypeButton,
-                      formData.organizationType === 'volunteer' && styles.orgTypeButtonActive
-                    ]}
-                    onPress={() => updateFormData('organizationType', 'volunteer')}
-                  >
-                    <Text style={[
-                      styles.orgTypeButtonText,
-                      formData.organizationType === 'volunteer' && styles.orgTypeButtonTextActive
-                    ]}>
-                      Individual
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.orgTypeButton,
-                      formData.organizationType === 'community_group' && styles.orgTypeButtonActive
-                    ]}
-                    onPress={() => updateFormData('organizationType', 'community_group')}
-                  >
-                    <Text style={[
-                      styles.orgTypeButtonText,
-                      formData.organizationType === 'community_group' && styles.orgTypeButtonTextActive
-                    ]}>
-                      Community
-                    </Text>
+                    <Ionicons 
+                      name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                      size={20} 
+                      color="#666" 
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
-            </>
-          )}
 
-          {/* Driver specific fields */}
-          {formData.userType === 'driver' && (
-            <>
+              {/* Confirm Password */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Vehicle Type *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.vehicleType}
-                  onChangeText={(value) => updateFormData('vehicleType', value)}
-                  placeholder="e.g., Car, Bike, Van"
-                  autoCapitalize="words"
-                />
+                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm your password"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={formData.confirmPassword}
+                    onChangeText={(value) => updateFormData('confirmPassword', value)}
+                    secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Ionicons 
+                      name={showConfirmPassword ? "eye-outline" : "eye-off-outline"} 
+                      size={20} 
+                      color="#666" 
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>License Number *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.licenseNumber}
-                  onChangeText={(value) => updateFormData('licenseNumber', value)}
-                  placeholder="Enter your driving license number"
-                  autoCapitalize="characters"
-                />
+              {/* Register Button */}
+              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+                <TouchableOpacity
+                  style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+                  onPress={handleRegister}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={theme?.colors?.gradients?.button || ['#87CEEB', '#4682B4']}
+                    style={styles.registerButtonGradient}
+                  >
+                    {loading ? (
+                      <View style={styles.loadingContainer}>
+                        <Animated.View style={styles.loadingDot} />
+                        <Text style={styles.registerButtonText}>Creating Account...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.registerButtonText}>Create Account</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+
+              {/* Login Link */}
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>Already have an account? </Text>
+                <TouchableOpacity onPress={navigateToLogin}>
+                  <Text style={styles.loginLink}>Sign In</Text>
+                </TouchableOpacity>
               </View>
-            </>
-          )}
-
-          {/* Address */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Address</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.address}
-              onChangeText={(value) => updateFormData('address', value)}
-              placeholder="Enter your address"
-              multiline
-              numberOfLines={2}
-            />
-          </View>
-
-          {/* Contact Number */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Contact Number</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.contactNumber}
-              onChangeText={(value) => updateFormData('contactNumber', value)}
-              placeholder="Enter your contact number"
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          {/* Password */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.password}
-              onChangeText={(value) => updateFormData('password', value)}
-              placeholder="Enter your password"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
-
-          {/* Confirm Password */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Confirm Password *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.confirmPassword}
-              onChangeText={(value) => updateFormData('confirmPassword', value)}
-              placeholder="Confirm your password"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
-
-          {/* Register Button */}
-          <TouchableOpacity
-            style={[styles.registerButton, loading && styles.registerButtonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            <Text style={styles.registerButtonText}>
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Login Link */}
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={navigateToLogin}>
-              <Text style={styles.loginLink}>Sign In</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            </LinearGradient>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
-    padding: wp(5),
-    paddingTop: rs(40),
+    paddingHorizontal: wp(6),
+    paddingVertical: hp(3),
+    minHeight: SCREEN_HEIGHT,
   },
   header: {
     alignItems: 'center',
-    marginBottom: rs(30),
+    marginBottom: hp(3),
+  },
+  logoContainer: {
+    marginBottom: hp(2),
+  },
+  logoCircle: {
+    width: rs(70),
+    height: rs(70),
+    borderRadius: rs(35),
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.large,
+  },
+  logoEmoji: {
+    fontSize: rf(35),
   },
   title: {
     fontSize: rf(32),
     fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: rs(8),
+    color: theme.colors.textLight,
+    marginBottom: hp(1),
+    ...theme.typography.textShadow,
   },
   subtitle: {
-    fontSize: rf(16),
-    color: '#666',
+    fontSize: rf(14),
+    color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
+    paddingHorizontal: wp(4),
+    lineHeight: rf(20),
+  },
+  formContainer: {
+    flex: 1,
+    justifyContent: 'center',
   },
   form: {
-    backgroundColor: '#fff',
-    borderRadius: rs(12),
+    borderRadius: theme.borderRadius.xlarge,
     padding: wp(6),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...theme.shadows.large,
   },
-  inputContainer: {
-    marginBottom: rs(16),
+  sectionTitle: {
+    fontSize: rf(24),
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    marginBottom: hp(3),
+    textAlign: 'center',
+  },
+  userTypeContainer: {
+    marginBottom: hp(3),
   },
   label: {
     fontSize: rf(16),
     fontWeight: '600',
-    color: '#333',
-    marginBottom: rs(8),
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: rs(8),
-    paddingHorizontal: rs(16),
-    paddingVertical: rs(12),
-    fontSize: rf(16),
-    backgroundColor: '#f8f9fa',
+    color: theme.colors.text,
+    marginBottom: hp(1.5),
   },
   userTypeButtons: {
     flexDirection: 'row',
-    gap: rs(8),
+    flexWrap: 'wrap',
+    gap: rs(12),
   },
   userTypeButton: {
     flex: 1,
-    paddingVertical: rs(12),
-    paddingHorizontal: rs(16),
-    borderRadius: rs(8),
+    minWidth: wp(25),
+    borderRadius: theme.borderRadius.medium,
+    overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#e0e0e0',
-    alignItems: 'center',
+    borderColor: theme.colors.border,
   },
   userTypeButtonActive: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#4CAF50',
+    borderColor: 'transparent',
+  },
+  userTypeButtonGradient: {
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(3),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userTypeIcon: {
+    fontSize: rf(18),
+    marginBottom: hp(0.5),
   },
   userTypeButtonText: {
-    fontSize: rf(14),
+    fontSize: rf(11),
     fontWeight: '600',
-    color: '#666',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   userTypeButtonTextActive: {
-    color: '#fff',
+    color: theme.colors.textLight,
+  },
+  inputContainer: {
+    marginBottom: hp(2.5),
+  },
+  inputLabel: {
+    fontSize: rf(14),
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: hp(1),
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: theme.borderRadius.medium,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: wp(4),
+    height: hp(6),
+  },
+  inputIcon: {
+    marginRight: wp(3),
+  },
+  input: {
+    flex: 1,
+    fontSize: rf(16),
+    color: theme.colors.text,
   },
   organizationTypeButtons: {
     flexDirection: 'row',
-    gap: rs(6),
+    gap: rs(12),
+    marginTop: hp(1),
   },
   orgTypeButton: {
     flex: 1,
-    paddingVertical: rs(10),
-    paddingHorizontal: rs(12),
-    borderRadius: rs(6),
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    alignItems: 'center',
+    borderRadius: theme.borderRadius.medium,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: theme.colors.border,
   },
   orgTypeButtonActive: {
-    borderColor: '#2196F3',
-    backgroundColor: '#2196F3',
+    borderColor: 'transparent',
   },
-  orgTypeButtonText: {
+  orgTypeButtonGradient: {
+    paddingVertical: hp(1.2),
+    paddingHorizontal: wp(3),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  organizationTypeText: {
     fontSize: rf(12),
     fontWeight: '600',
-    color: '#666',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   orgTypeButtonTextActive: {
-    color: '#fff',
+    color: theme.colors.textLight,
   },
   registerButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: rs(8),
-    paddingVertical: rs(16),
-    alignItems: 'center',
-    marginTop: rs(8),
-    marginBottom: rs(16),
+    borderRadius: theme.borderRadius.medium,
+    overflow: 'hidden',
+    marginTop: hp(2),
+    marginBottom: hp(2),
+    ...theme.shadows.button,
   },
   registerButtonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.7,
+  },
+  registerButtonGradient: {
+    paddingVertical: hp(2),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingDot: {
+    width: rs(6),
+    height: rs(6),
+    borderRadius: rs(3),
+    backgroundColor: theme.colors.textLight,
+    marginRight: wp(2),
   },
   registerButtonText: {
-    color: '#fff',
-    fontSize: rf(16),
-    fontWeight: '600',
+    fontSize: rf(18),
+    fontWeight: 'bold',
+    color: theme.colors.textLight,
   },
   loginContainer: {
     flexDirection: 'row',
@@ -546,12 +753,13 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: rf(14),
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   loginLink: {
     fontSize: rf(14),
-    color: '#4CAF50',
+    color: theme.colors.primary,
     fontWeight: '600',
+    marginLeft: wp(1),
   },
 });
 

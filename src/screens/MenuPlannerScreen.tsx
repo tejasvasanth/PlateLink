@@ -175,8 +175,8 @@ const MenuPlannerScreen: React.FC = () => {
                 
                 {/* Roti/Rice are NOT part of the 5 item count, they are staples */}
                 <View style={styles.riceRotiSection}>
-                    <Text style={styles.riceRotiText}>🍚 **Plain Rice**</Text>
-                    <Text style={styles.riceRotiText}>🥖 **Chapati (Roti)**</Text>
+                    <Text style={styles.riceRotiText}>🍚 Plain Rice</Text>
+                    <Text style={styles.riceRotiText}>🥖 Chapati (Roti)</Text>
                 </View>
 
                 {Object.keys(itemsByCuisine).map(cuisineKey => (

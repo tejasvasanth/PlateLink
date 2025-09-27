@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  ActivityIndicator,
   Animated,
   Dimensions,
 } from 'react-native';
@@ -23,27 +22,13 @@ import theme from '../config/theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// --- TYPES for Menu Recommendation (Kept for reference) ---
-interface MenuItem {
-  dish_name: string;
-  food_id: string;
-  veg_nonveg: 'Veg' | 'Non-Veg';
-  cuisine: string;
-  waste_score_pct: number;
-  estimated_prep_time_hours: number;
-}
-
-const CanteenDashboard: React.FC = () => {
+const DriverDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  
   const [todayStats, setTodayStats] = useState({
-    totalSurplus: 0,
-    redistributed: 0,
-    peopleFed: 0,
-    carbonSaved: 0,
+    availableDeliveries: 0,
+    completedDeliveries: 0,
   });
-  const [recentActivity, setRecentActivity] = useState<FoodSurplus[]>([]);
   const navigation = useNavigation();
 
   // Animation values
@@ -53,11 +38,8 @@ const CanteenDashboard: React.FC = () => {
   const statsAnimations = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
   ]).current;
   const actionsAnimations = useRef([
-    new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
@@ -69,9 +51,7 @@ const CanteenDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (user) {
-        loadTodayStats();
-    }
+    loadTodayStats();
   }, [user]);
 
   const startAnimations = () => {
@@ -126,26 +106,25 @@ const CanteenDashboard: React.FC = () => {
   const loadTodayStats = async () => {
     try {
       const currentUser = await AuthService.getCurrentUser();
+      setUser(currentUser);
       if (!currentUser) return;
+
+      // Get actual available deliveries that need drivers
+      const availableDeliveries = await FoodSurplusService.getClaimedSurplusNeedingDrivers();
+      const assignedDeliveries = await FoodSurplusService.getDriverAssignedSurplus(currentUser.id);
       
-      const items = await FoodSurplusService.getFoodSurplusByCanteen(currentUser.id);
+      // Filter completed deliveries (those with ngoDeliveryVerifiedAt set)
+      const completedToday = assignedDeliveries.filter(delivery => 
+        delivery.ngoDeliveryVerifiedAt && 
+        delivery.ngoDeliveryVerifiedAt.getDate() === new Date().getDate()
+      ).length;
 
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-      const createdToday = items.filter(i => i.createdAt >= startOfDay && i.createdAt < endOfDay);
-      const collectedToday = items.filter(i => i.status === 'collected' && (i.updatedAt || i.createdAt) >= startOfDay && (i.updatedAt || i.createdAt) < endOfDay);
-
-      const totalSurplus = createdToday.length;
-      const redistributed = collectedToday.length;
-      const peopleFed = collectedToday.reduce((sum, i) => sum + (i.quantity || 0), 0);
-      const carbonSaved = Math.round(peopleFed * 2.5); 
-
-      setTodayStats({ totalSurplus, redistributed, peopleFed, carbonSaved });
-      setRecentActivity(items.slice(0, 5));
+      setTodayStats({
+        availableDeliveries: availableDeliveries.length,
+        completedDeliveries: completedToday,
+      });
     } catch (error) {
-      console.error('Failed to load canteen stats:', error);
+      console.error('Failed to load driver stats:', error);
     }
   };
 
@@ -174,16 +153,12 @@ const CanteenDashboard: React.FC = () => {
     );
   };
 
-  const navigateToAddSurplus = () => {
-    navigation.navigate('AddSurplusScreen' as never); 
+  const navigateToDeliveries = () => {
+    navigation.navigate('Deliveries' as never);
   };
 
-  const navigateToSurplusList = () => {
-    navigation.navigate('Surplus' as never);
-  };
-
-  const navigateToMenuPlanner = () => {
-    navigation.navigate('MenuPlannerScreen' as never);
+  const navigateToMap = () => {
+    navigation.navigate('Map' as never);
   };
 
   const navigateToProfile = () => {
@@ -212,31 +187,28 @@ const CanteenDashboard: React.FC = () => {
   };
 
   const getStatIcon = (index: number) => {
-    const icons = ['restaurant', 'sync', 'people', 'leaf'];
+    const icons = ['car', 'checkmark-circle'];
     return icons[index];
   };
 
   const getStatColor = (index: number) => {
     const colors = [
-      ['#FF6B6B', '#FF8E8E'],
-      ['#4ECDC4', '#44A08D'],
-      ['#45B7D1', '#96C93D'],
-      ['#96CEB4', '#FFECD2'],
+      theme?.colors?.gradients?.accent || ['#B0E0E6', '#87CEEB'],
+      theme?.colors?.gradients?.success || ['#20B2AA', '#008B8B'],
     ];
     return colors[index];
   };
 
   const getActionIcon = (index: number) => {
-    const icons = ['add-circle', 'list', 'restaurant-menu', 'chatbubbles'];
+    const icons = ['car-sport', 'map', 'chatbubbles'];
     return icons[index];
   };
 
   const getActionColor = (index: number) => {
     const colors = [
-      ['#667eea', '#764ba2'],
-      ['#f093fb', '#f5576c'],
-      ['#4facfe', '#00f2fe'],
-      ['#43e97b', '#38f9d7'],
+      theme?.colors?.gradients?.primary || ['#87CEEB', '#4682B4'],
+      theme?.colors?.gradients?.accent || ['#B0E0E6', '#87CEEB'],
+      theme?.colors?.gradients?.success || ['#20B2AA', '#008B8B'],
     ];
     return colors[index];
   };
@@ -253,8 +225,8 @@ const CanteenDashboard: React.FC = () => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            tintColor={theme.colors.textLight}
-            colors={[theme.colors.textLight]}
+            tintColor="#fff"
+            colors={['#fff']}
           />
         }
       >
@@ -270,10 +242,10 @@ const CanteenDashboard: React.FC = () => {
         >
           <View style={styles.headerContent}>
             <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.canteenName}>{user?.canteenName || user?.name}</Text>
-            <View style={styles.greenScoreContainer}>
-              <Ionicons name="leaf" size={16} color="#4CAF50" />
-              <Text style={styles.greenScore}>Green Score: {user?.greenScore || 0}</Text>
+            <Text style={styles.driverName}>{user?.name}</Text>
+            <View style={styles.ratingContainer}>
+              <Ionicons name="star" size={16} color="#FFD700" />
+              <Text style={styles.rating}>Driver Rating: {user?.rating || '4.8'}/5</Text>
             </View>
           </View>
           <TouchableOpacity 
@@ -300,13 +272,11 @@ const CanteenDashboard: React.FC = () => {
             }
           ]}
         >
-          <Text style={styles.sectionTitle}>Today's Impact</Text>
+          <Text style={styles.sectionTitle}>Today's Overview</Text>
           <View style={styles.statsGrid}>
             {[
-              { value: todayStats.totalSurplus, label: 'Surplus Items' },
-              { value: todayStats.redistributed, label: 'Redistributed' },
-              { value: todayStats.peopleFed, label: 'People Fed (kg)' },
-              { value: `${todayStats.carbonSaved}kg`, label: 'CO₂ Saved' },
+              { value: todayStats.availableDeliveries, label: 'Available Deliveries' },
+              { value: todayStats.completedDeliveries, label: 'Completed Today' },
             ].map((stat, index) => (
               <Animated.View
                 key={index}
@@ -330,7 +300,7 @@ const CanteenDashboard: React.FC = () => {
                   <View style={styles.statIconContainer}>
                     <Ionicons 
                       name={getStatIcon(index) as any} 
-                      size={24} 
+                      size={28} 
                       color="#fff" 
                     />
                   </View>
@@ -347,10 +317,9 @@ const CanteenDashboard: React.FC = () => {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionGrid}>
             {[
-              { title: 'Log Surplus', subtitle: 'ML-optimized waste entry', onPress: navigateToAddSurplus },
-              { title: 'View Surplus', subtitle: 'Manage listed items', onPress: navigateToSurplusList },
-              { title: 'Menu Planner', subtitle: 'ML-optimized weekly menu', onPress: navigateToMenuPlanner },
-              { title: 'Messages', subtitle: 'Chat with NGOs', onPress: navigateToMessages },
+              { title: 'Find Deliveries', subtitle: 'View available rides', onPress: navigateToDeliveries },
+              { title: 'Map', subtitle: 'View delivery routes', onPress: navigateToMap },
+              { title: 'Messages', subtitle: 'Chat with partners', onPress: navigateToMessages },
             ].map((action, index) => (
               <Animated.View
                 key={index}
@@ -379,7 +348,7 @@ const CanteenDashboard: React.FC = () => {
                     <View style={styles.actionIconContainer}>
                       <Ionicons 
                         name={getActionIcon(index) as any} 
-                        size={28} 
+                        size={32} 
                         color="#fff" 
                       />
                     </View>
@@ -392,50 +361,42 @@ const CanteenDashboard: React.FC = () => {
           </View>
         </View>
 
-        {/* Recent Activity */}
-        <View style={styles.recentActivity}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
+        {/* Driver Status Card */}
+        <View style={styles.statusContainer}>
+          <Text style={styles.sectionTitle}>Driver Status</Text>
           <LinearGradient
             colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.9)']}
-            style={styles.activityList}
+            style={styles.statusCard}
           >
-            {recentActivity.length === 0 ? (
-              <View style={styles.activityItem}>
-                <View style={styles.activityIconContainer}>
-                  <Ionicons name="time" size={20} color="#999" />
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityText}>No recent activity</Text>
-                  <Text style={styles.activityTime}>Start by logging surplus food</Text>
-                </View>
+            <View style={styles.statusHeader}>
+              <View style={styles.statusIconContainer}>
+                <Ionicons name="car-sport" size={24} color="#FF6B35" />
               </View>
-            ) : (
-              recentActivity.map((item, index) => (
-                <View key={item.id} style={styles.activityItem}>
-                  <View style={styles.activityIconContainer}>
-                    <Ionicons 
-                      name={
-                        item.status === 'collected' ? 'checkmark-circle' :
-                        item.status === 'claimed' ? 'hand-left' :
-                        item.status === 'expired' ? 'close-circle' : 'add-circle'
-                      } 
-                      size={20} 
-                      color={
-                        item.status === 'collected' ? '#4CAF50' :
-                        item.status === 'claimed' ? '#FF9800' :
-                        item.status === 'expired' ? '#F44336' : '#2196F3'
-                      }
-                    />
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityText}>
-                      {item.foodName} {item.status === 'claimed' ? `claimed by ${item.claimerName || 'NGO'}` : item.status === 'collected' ? `collected by ${item.claimerName || 'NGO'}` : item.status === 'expired' ? 'expired' : 'added'}
-                    </Text>
-                    <Text style={styles.activityTime}>{formatTimeAgo(item.updatedAt || item.createdAt)}</Text>
-                  </View>
-                </View>
-              ))
-            )}
+              <View style={styles.statusInfo}>
+                <Text style={styles.statusTitle}>Ready for Deliveries</Text>
+                <Text style={styles.statusSubtitle}>You're online and available</Text>
+              </View>
+              <View style={styles.statusIndicator}>
+                <View style={styles.onlineIndicator} />
+              </View>
+            </View>
+            
+            <View style={styles.statusStats}>
+              <View style={styles.statusStatItem}>
+                <Text style={styles.statusStatNumber}>{user?.totalDeliveries || 0}</Text>
+                <Text style={styles.statusStatLabel}>Total Deliveries</Text>
+              </View>
+              <View style={styles.statusStatDivider} />
+              <View style={styles.statusStatItem}>
+                <Text style={styles.statusStatNumber}>{user?.rating || '4.8'}</Text>
+                <Text style={styles.statusStatLabel}>Rating</Text>
+              </View>
+              <View style={styles.statusStatDivider} />
+              <View style={styles.statusStatItem}>
+                <Text style={styles.statusStatNumber}>{user?.totalEarnings || '$0'}</Text>
+                <Text style={styles.statusStatLabel}>Earnings</Text>
+              </View>
+            </View>
           </LinearGradient>
         </View>
 
@@ -470,55 +431,43 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: wp(5),
     paddingTop: hp(6),
-    paddingBottom: hp(3),
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    paddingBottom: hp(2),
   },
   headerContent: {
-    flex: 1,
+    alignItems: 'flex-start',
   },
   welcomeText: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: rf(14),
+    ...theme.typography.body,
+    color: theme.colors.text.light,
     marginBottom: hp(0.5),
   },
-  canteenName: {
-    color: '#fff',
-    fontSize: rf(26),
-    fontWeight: 'bold',
-    marginBottom: hp(0.8),
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+  driverName: {
+    ...theme.typography.title,
+    color: theme.colors.text.light,
+    marginBottom: hp(1),
   },
-  greenScoreContainer: {
+  ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: wp(3),
-    paddingVertical: hp(0.5),
-    borderRadius: rs(20),
-    alignSelf: 'flex-start',
   },
-  greenScore: {
-    color: '#fff',
-    fontSize: rf(12),
-    fontWeight: '600',
+  rating: {
+    ...theme.typography.caption,
+    color: theme.colors.text.light,
     marginLeft: wp(1),
   },
   profileButton: {
-    borderRadius: rs(25),
+    position: 'absolute',
+    top: hp(6),
+    right: wp(5),
+    width: rs(45),
+    height: rs(45),
+    borderRadius: theme.borderRadius.full,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    ...theme.shadows.medium,
   },
   profileButtonGradient: {
-    width: rs(50),
-    height: rs(50),
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -526,78 +475,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp(5),
     marginBottom: hp(2),
   },
-  sectionTitle: {
-    fontSize: rf(20),
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: hp(2),
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  statsGrid: {
+  statsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: rs(12),
-  },
-  statCardContainer: {
-    flex: 1,
-    minWidth: wp(42),
+    justifyContent: 'space-between',
   },
   statCard: {
-    borderRadius: rs(16),
-    padding: wp(4),
+    flex: 1,
+    marginHorizontal: wp(1),
+    borderRadius: theme.borderRadius.large,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
+  },
+  statCardGradient: {
+    padding: wp(3),
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-    minHeight: hp(12),
+    minHeight: hp(10),
     justifyContent: 'center',
   },
   statIconContainer: {
     marginBottom: hp(0.8),
   },
   statNumber: {
-    fontSize: rf(22),
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: hp(0.5),
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    ...theme.typography.heading,
+    color: theme.colors.text.light,
+    marginBottom: hp(0.2),
   },
   statLabel: {
-    fontSize: rf(11),
-    color: 'rgba(255,255,255,0.9)',
+    ...theme.typography.caption,
+    color: theme.colors.text.light,
     textAlign: 'center',
-    fontWeight: '500',
   },
-  quickActions: {
+  actionsContainer: {
     paddingHorizontal: wp(5),
     marginBottom: hp(2),
   },
-  actionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: rs(12),
+  actionsTitle: {
+    ...theme.typography.subtitle,
+    color: theme.colors.text.light,
+    marginBottom: hp(1.5),
+    textAlign: 'center',
   },
-  actionCardContainer: {
-    flex: 1,
-    minWidth: wp(42),
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   actionCard: {
-    borderRadius: rs(16),
+    flex: 1,
+    marginHorizontal: wp(1),
+    borderRadius: theme.borderRadius.large,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    ...theme.shadows.medium,
   },
   actionCardGradient: {
-    padding: wp(4),
+    padding: wp(3),
     alignItems: 'center',
     minHeight: hp(12),
     justifyContent: 'center',
@@ -606,72 +536,97 @@ const styles = StyleSheet.create({
     marginBottom: hp(0.8),
   },
   actionTitle: {
-    fontSize: rf(13),
-    fontWeight: 'bold',
-    color: '#fff',
+    ...theme.typography.body,
+    color: theme.colors.text.light,
     marginBottom: hp(0.3),
     textAlign: 'center',
   },
   actionSubtitle: {
-    fontSize: rf(10),
-    color: 'rgba(255,255,255,0.9)',
+    ...theme.typography.caption,
+    color: theme.colors.text.light,
     textAlign: 'center',
-    fontWeight: '500',
   },
-  recentActivity: {
+  statusContainer: {
     paddingHorizontal: wp(5),
     marginBottom: hp(2),
   },
-  activityList: {
-    borderRadius: rs(16),
+  statusCard: {
+    borderRadius: theme.borderRadius.large,
     padding: wp(4),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: theme.colors.background.card,
+    ...theme.shadows.medium,
   },
-  activityItem: {
+  statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: hp(1.5),
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    marginBottom: hp(2),
   },
-  activityIconContainer: {
-    width: rs(40),
-    height: rs(40),
-    borderRadius: rs(20),
-    backgroundColor: 'rgba(0,0,0,0.05)',
+  statusIconContainer: {
+    width: rs(50),
+    height: rs(50),
+    borderRadius: rs(25),
+    backgroundColor: theme.colors.background.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: wp(3),
   },
-  activityContent: {
+  statusInfo: {
     flex: 1,
   },
-  activityText: {
-    fontSize: rf(13),
-    color: '#333',
-    fontWeight: '500',
+  statusTitle: {
+    ...theme.typography.subtitle,
+    color: theme.colors.text.primary,
     marginBottom: hp(0.2),
   },
-  activityTime: {
-    fontSize: rf(11),
-    color: '#666',
+  statusSubtitle: {
+    ...theme.typography.caption,
+    color: theme.colors.text.secondary,
+  },
+  statusIndicator: {
+    alignItems: 'center',
+  },
+  onlineIndicator: {
+    width: rs(12),
+    height: rs(12),
+    borderRadius: rs(6),
+    backgroundColor: theme?.colors?.status?.success || '#20B2AA',
+    ...theme.shadows.small,
+  },
+  statusStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingTop: hp(2),
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+  },
+  statusStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusStatNumber: {
+    ...theme.typography.heading,
+    color: theme.colors.primary,
+    marginBottom: hp(0.2),
+  },
+  statusStatLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  statusStatDivider: {
+    width: 1,
+    height: hp(4),
+    backgroundColor: theme.colors.border.light,
   },
   logoutContainer: {
     paddingHorizontal: wp(5),
     paddingBottom: hp(3),
   },
   logoutButton: {
-    borderRadius: rs(14),
+    borderRadius: theme.borderRadius.medium,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    ...theme.shadows.medium,
   },
   logoutButtonGradient: {
     flexDirection: 'row',
@@ -683,21 +638,9 @@ const styles = StyleSheet.create({
     marginRight: wp(2),
   },
   logoutButtonText: {
-    color: '#fff',
-    fontSize: rf(16),
-    fontWeight: 'bold',
+    ...theme.typography.button,
+    color: theme.colors.text.light,
   },
 });
 
-// Helper to format time ago
-const formatTimeAgo = (date: Date) => {
-  const diffMs = Date.now() - date.getTime();
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  if (diffHours < 1) {
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    return `${diffMinutes} min ago`;
-  }
-  return `${diffHours} hours ago`;
-};
-
-export default CanteenDashboard;
+export default DriverDashboard;

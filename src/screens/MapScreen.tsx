@@ -14,7 +14,7 @@ import { LocationService } from '../services/LocationService';
 import FoodSurplusService from '../services/FoodSurplusService';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-
+import theme from '../config/theme';
 // Local Region type to avoid importing from react-native-maps on web
 type Region = {
   latitude: number;
@@ -86,43 +86,47 @@ export default function MapScreen() {
   };
 
   useEffect(() => {
-    (async () => {
+    const checkLocationPermissions = async () => {
       try {
-        setLoading(true);
-        const user = await AuthService.getCurrentUser();
-        // Normalize volunteer to driver for role-based map behavior
-        const rawType = user?.userType;
-        const type: UserType = rawType === 'volunteer'
-          ? 'driver'
-          : (rawType === 'canteen' || rawType === 'ngo' || rawType === 'driver')
-            ? (rawType as UserType)
-            : 'ngo';
-        setCurrentUserType(type);
-
-        // Set sensible default display mode per role
-        if (type === 'driver') {
-          setDisplayMode('canteen');
-        } else if (type === 'ngo') {
-          setDisplayMode('all');
-        }
-
-        if (type === 'canteen') {
-          // Map not available for canteens per requirements
-          setUserLocations([]);
-          setAssignedOnlyMode(false);
-          setRoute(null);
-          setLoading(false);
+        // Check if location services are enabled
+        const enabled = await Location.hasServicesEnabledAsync();
+        if (!enabled) {
+          Alert.alert(
+            'Location Services Disabled',
+            'Please enable location services to use the map features.',
+            [{ text: 'OK' }]
+          );
           return;
         }
 
-        await loadDataForType(type, user?.id || null);
+        // Request location permissions
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Location Permission Required',
+            'Please grant location permissions to use the map features.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        // Load initial data
+        const user = await AuthService.getCurrentUser();
+        if (user) {
+          setCurrentUserType(user.userType);
+          await loadDataForType(user.userType, user.id);
+        }
       } catch (error) {
-        console.error('Error initializing map data:', error);
-        Alert.alert('Error', 'Failed to load locations. Please try again.');
+        console.error('Error initializing map:', error);
+        if (error instanceof Error) {
+          Alert.alert('Error', error.message);
+        }
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    checkLocationPermissions();
   }, []);
 
   const loadDataForType = async (type: UserType, userId: string | null) => {
@@ -248,13 +252,13 @@ export default function MapScreen() {
   const getMarkerColor = (userType: string) => {
     switch (userType) {
       case 'canteen':
-        return '#FF6B6B'; // Red for canteens
+        return theme.colors.canteen;
       case 'ngo':
-        return '#4ECDC4'; // Teal for NGOs
+        return theme.colors.ngo;
       case 'driver':
-        return '#45B7D1'; // Blue for drivers
+        return theme.colors.driver;
       default:
-        return '#95A5A6'; // Gray for unknown
+        return theme.colors.border;
     }
   };
 
@@ -276,7 +280,7 @@ export default function MapScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4ECDC4" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading locations...</Text>
       </View>
     );
@@ -314,7 +318,7 @@ export default function MapScreen() {
           {assignedOnlyMode && route && PolylineComp && (
             <PolylineComp
               coordinates={[route.start, route.end]}
-              strokeColor="#2c3e50"
+              strokeColor={theme.colors.primary}
               strokeWidth={4}
             />
           )}
@@ -329,11 +333,11 @@ export default function MapScreen() {
         {/* Role-specific filter swap and refresh */}
         <View style={styles.footerRow}>
           <TouchableOpacity style={styles.swapButton} onPress={cycleDisplayMode}>
-            <Ionicons name="swap-horizontal" size={18} color="#2c3e50" />
+            <Ionicons name="swap-horizontal" size={18} color={theme.colors.primary} />
             <Text style={styles.swapText}>Showing: {currentModeLabel()}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-            <Ionicons name="refresh" size={18} color="#fff" />
+            <Ionicons name="refresh" size={18} color={theme.colors.textLight} />
             <Text style={styles.refreshText}>{refreshing ? 'Refreshing...' : 'Refresh'}</Text>
           </TouchableOpacity>
         </View>
@@ -343,32 +347,32 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: theme.colors.background },
   map: { flex: 1 },
   header: {
     position: 'absolute',
     top: 50,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 12,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#2c3e50' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: theme.colors.primary },
   footer: {
     position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 12,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -382,23 +386,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: '#ecf0f1',
+    backgroundColor: theme.colors.backgroundSecondary,
     marginRight: 10,
   },
-  activeTab: { backgroundColor: '#4ECDC4' },
-  tabText: { marginLeft: 6, color: '#2c3e50', fontWeight: '600' },
-  activeTabText: { color: '#fff' },
+  activeTab: { backgroundColor: theme.colors.primary },
+  tabText: { marginLeft: 6, color: theme.colors.primary, fontWeight: '600' },
+  activeTabText: { color: theme.colors.textLight },
   swapButton: {
-    backgroundColor: '#ecf0f1',
+    backgroundColor: theme.colors.backgroundSecondary,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  swapText: { marginLeft: 6, color: '#2c3e50', fontWeight: '700' },
+  swapText: { marginLeft: 6, color: theme.colors.primary, fontWeight: '700' },
   refreshButton: {
-    backgroundColor: '#2c3e50',
+    backgroundColor: theme.colors.primary,
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
@@ -407,7 +411,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginLeft: 10,
   },
-  refreshText: { color: '#fff', marginLeft: 6, fontWeight: '700' },
+  refreshText: { color: theme.colors.textLight, marginLeft: 6, fontWeight: '700' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  loadingText: { marginTop: 8, color: '#2c3e50' },
+  loadingText: { marginTop: 8, color: theme.colors.primary },
 });

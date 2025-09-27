@@ -66,19 +66,37 @@ export class LocationService {
    */
   static async geocodeAddress(address: string): Promise<{ latitude: number; longitude: number } | null> {
     try {
-      // On web, skip geocoding to avoid browser/environment limitations
+      // On web, return a default Chennai location to avoid browser limitations
       if (Platform.OS === 'web') {
-        console.warn('Geocoding skipped on web environment');
-        return null;
+        console.warn('Geocoding not available on web, using default Chennai location');
+        return {
+          latitude: 13.0827,
+          longitude: 80.2707
+        };
       }
 
       // Add Chennai, India to the address for better accuracy
       const fullAddress = address?.includes('Chennai') ? address : `${address}, Chennai, India`;
 
-      // Some platforms may require foreground permissions for location services used by geocoder
+      // Request location permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.warn('Location permission not granted; skipping geocoding');
+        Alert.alert(
+          'Location Permission Required',
+          'Please grant location permissions to use the map features.',
+          [{ text: 'OK' }]
+        );
+        return null;
+      }
+
+      // Ensure location services are enabled
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'Please enable location services to use the map features.',
+          [{ text: 'OK' }]
+        );
         return null;
       }
 
@@ -99,6 +117,9 @@ export class LocationService {
       return null;
     } catch (error) {
       console.error('Geocoding error:', error);
+      if (error instanceof Error) {
+        Alert.alert('Location Error', error.message);
+      }
       return null;
     }
   }

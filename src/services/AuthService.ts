@@ -12,6 +12,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { User } from '../models/User';
+import { FirestoreTest } from '../utils/FirestoreTest';
 
 // Helper: deeply remove undefined values from objects/arrays before Firestore writes
 const sanitizeFirestoreData = (value: any): any => {
@@ -118,7 +119,6 @@ class AuthService {
       console.log('Starting registration process for:', data.email);
       
       // Test Firestore connection before proceeding
-      const { FirestoreTest } = await import('../utils/FirestoreTest');
       console.log('Testing Firestore connection...');
       
       const connectionTest = await FirestoreTest.testConnection();

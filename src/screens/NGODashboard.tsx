@@ -36,6 +36,25 @@ const NGODashboard = () => {
   const [recentActivity, setRecentActivity] = useState<FoodSurplus[]>([]);
   const navigation = useNavigation();
 
+  // Helper function to format hours until expiry
+  const formatHoursUntil = (expiryTime: Date) => {
+    const now = new Date();
+    const diffMs = expiryTime.getTime() - now.getTime();
+    const diffHours = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)));
+    return diffHours;
+  };
+
+  // Helper function to format time ago
+  const formatTimeAgo = (date: Date) => {
+    const diffMs = Date.now() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) {
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      return `${diffMinutes} min ago`;
+    }
+    return `${diffHours} hours ago`;
+  };
+
   // Enhanced Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
